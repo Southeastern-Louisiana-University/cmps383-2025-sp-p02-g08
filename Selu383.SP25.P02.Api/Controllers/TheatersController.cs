@@ -1,7 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Selu383.SP25.P02.Api.Data;
 using Selu383.SP25.P02.Api.Features.Theaters;
+using Selu383.SP25.P02.Api.Features.Users;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Selu383.SP25.P02.Api.Controllers
 {
@@ -38,6 +43,7 @@ namespace Selu383.SP25.P02.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public ActionResult<TheaterDto> CreateTheater(TheaterDto dto)
         {
             if (IsInvalid(dto))
@@ -45,11 +51,22 @@ namespace Selu383.SP25.P02.Api.Controllers
                 return BadRequest();
             }
 
+            //  Ensure ManagerId is valid (can be null)
+            if (dto.ManagerId.HasValue)
+            {
+                var managerExists = dataContext.Users.Any(u => u.Id == dto.ManagerId);
+                if (!managerExists)
+                {
+                    return BadRequest("Invalid ManagerId. User does not exist.");
+                }
+            }
+
             var theater = new Theater
             {
                 Name = dto.Name,
                 Address = dto.Address,
                 SeatCount = dto.SeatCount,
+                ManagerId = dto.ManagerId
             };
             theaters.Add(theater);
 
@@ -62,6 +79,7 @@ namespace Selu383.SP25.P02.Api.Controllers
 
         [HttpPut]
         [Route("{id}")]
+        [Authorize]
         public ActionResult<TheaterDto> UpdateTheater(int id, TheaterDto dto)
         {
             if (IsInvalid(dto))
@@ -75,9 +93,27 @@ namespace Selu383.SP25.P02.Api.Controllers
                 return NotFound();
             }
 
+            // ✅ Get logged-in user ID
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var isAdmin = User.IsInRole("Admin");
+            var isManager = theater.ManagerId.HasValue && theater.ManagerId == userId;
+
+            // ✅ Only allow updates by Admins or the assigned Manager
+            if (!isAdmin && !isManager)
+            {
+                return Forbid(); // 403 Forbidden
+            }
+
+            // ✅ Only Admins can change the ManagerId
+            if (dto.ManagerId.HasValue && !isAdmin)
+            {
+                return Forbid();
+            }
+
             theater.Name = dto.Name;
             theater.Address = dto.Address;
             theater.SeatCount = dto.SeatCount;
+            theater.ManagerId = dto.ManagerId;
 
             dataContext.SaveChanges();
 
@@ -88,6 +124,7 @@ namespace Selu383.SP25.P02.Api.Controllers
 
         [HttpDelete]
         [Route("{id}")]
+        [Authorize(Roles = "Admin")]
         public ActionResult DeleteTheater(int id)
         {
             var theater = theaters.FirstOrDefault(x => x.Id == id);
@@ -120,6 +157,7 @@ namespace Selu383.SP25.P02.Api.Controllers
                     Name = x.Name,
                     Address = x.Address,
                     SeatCount = x.SeatCount,
+                    ManagerId = x.ManagerId
                 });
         }
     }
