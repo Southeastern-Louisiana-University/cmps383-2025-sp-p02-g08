@@ -23,7 +23,7 @@ namespace Selu383.SP25.P02.Api.Controllers
             _roleManager = roleManager;
         }
 
-        // ✅ GET ALL USERS
+        // GET ALL USERS
         [HttpGet]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -38,7 +38,7 @@ namespace Selu383.SP25.P02.Api.Controllers
             return Ok(userDtos);
         }
 
-        // ✅ GET USER BY ID
+        // GET USER BY ID
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUserById(int id)
         {
@@ -56,11 +56,11 @@ namespace Selu383.SP25.P02.Api.Controllers
             });
         }
 
-        // ✅ CREATE NEW USER (Admin Only)
+        //  CREATE NEW USER (Admin Only)
         [HttpPost]
         public async Task<IActionResult> CreateUser([FromBody] CreateUserDto model)
         {
-            // ✅ Validate input (Empty Username, Empty Roles, No Password)
+            //  Validate input (Empty Username, Empty Roles, No Password)
             if (string.IsNullOrWhiteSpace(model.UserName))
             {
                 return BadRequest("Username cannot be empty.");
@@ -76,7 +76,7 @@ namespace Selu383.SP25.P02.Api.Controllers
                 return BadRequest("At least one role is required.");
             }
 
-            // ✅ Check if the username already exists
+            // Check if the username already exists
             var userExists = await _userManager.FindByNameAsync(model.UserName);
             if (userExists != null)
             {
@@ -88,14 +88,14 @@ namespace Selu383.SP25.P02.Api.Controllers
                 UserName = model.UserName
             };
 
-            // ✅ Create user with password
+            // Create user with password
             var result = await _userManager.CreateAsync(user, model.Password);
             if (!result.Succeeded)
             {
                 return BadRequest(result.Errors.Select(e => e.Description));
             }
 
-            // ✅ Validate Roles
+            //  Validate Roles
             foreach (var role in model.Roles)
             {
                 if (!await _roleManager.RoleExistsAsync(role))
@@ -104,7 +104,7 @@ namespace Selu383.SP25.P02.Api.Controllers
                 }
             }
 
-            // ✅ Assign roles to user
+            //  Assign roles to user
             await _userManager.AddToRolesAsync(user, model.Roles);
 
             return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, new UserDto
@@ -115,7 +115,7 @@ namespace Selu383.SP25.P02.Api.Controllers
             });
         }
 
-        // ✅ UPDATE USER ROLES
+        //  UPDATE USER ROLES
         [HttpPut("{id}/roles")]
         public async Task<IActionResult> UpdateUserRoles(int id, [FromBody] string[] roles)
         {
@@ -142,7 +142,7 @@ namespace Selu383.SP25.P02.Api.Controllers
             return Ok(new { message = $"User {user.UserName} roles updated successfully!" });
         }
 
-        // ✅ DELETE USER
+        // DELETE USER
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {

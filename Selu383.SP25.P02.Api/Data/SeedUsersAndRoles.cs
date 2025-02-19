@@ -1,45 +1,41 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
 using Selu383.SP25.P02.Api.Features.Users;
 using Selu383.SP25.P02.Api.Features.Roles;
-using System;
-using System.Threading.Tasks;
 
 namespace Selu383.SP25.P02.Api.Data
 {
     public static class SeedUsersAndRoles
     {
-        public static async Task Initialize(IServiceProvider serviceProvider)
+        public static async Task EnsureSeededAsync(IServiceProvider serviceProvider)
         {
-            var userManager = serviceProvider.GetRequiredService<UserManager<User>>();
-            var roleManager = serviceProvider.GetRequiredService<RoleManager<Role>>();
+            using var scope = serviceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
 
-            // ✅ Ensure Roles Exist
-            string[] roleNames = { "Admin", "User" };
-            foreach (var roleName in roleNames)
+            string[] roles = { "Admin", "User" };
+
+            //  Ensure Roles Exist
+            foreach (var role in roles)
             {
-                if (!await roleManager.RoleExistsAsync(roleName))
+                if (!await roleManager.RoleExistsAsync(role))
                 {
-                    await roleManager.CreateAsync(new Role { Name = roleName });
+                    await roleManager.CreateAsync(new Role { Name = role });
                 }
             }
 
-            // ✅ Ensure Users Exist
-            var users = new (string UserName, string Role)[] {
-                ("bob", "User"),
-                ("sue", "User"),
-                ("galkadi", "Admin")
-            };
+            //  Ensure Users Exist
+            await CreateUserIfNotExists(userManager, "galkadi", "Admin");
+            await CreateUserIfNotExists(userManager, "bob", "User");
+            await CreateUserIfNotExists(userManager, "sue", "User");
+        }
 
-            foreach (var (userName, role) in users)
+        private static async Task CreateUserIfNotExists(UserManager<User> userManager, string username, string role)
+        {
+            if (await userManager.FindByNameAsync(username) == null)
             {
-                var user = await userManager.FindByNameAsync(userName);
-                if (user == null)
-                {
-                    user = new User { UserName = userName };
-                    await userManager.CreateAsync(user, "Password123!");
-                    await userManager.AddToRoleAsync(user, role);
-                }
+                var user = new User { UserName = username };
+                await userManager.CreateAsync(user, "Password123!");
+                await userManager.AddToRoleAsync(user, role);
             }
         }
     }
