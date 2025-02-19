@@ -110,11 +110,7 @@ namespace Selu383.SP25.P02.Api.Controllers
                 return Forbid(); //  403 Forbidden if user is not Manager/Admin
             }
 
-            // Only Admins can change the ManagerId
-            if (dto.ManagerId.HasValue && !isAdmin)
-            {
-                return Forbid();
-            }
+           
 
             theater.Name = dto.Name;
             theater.Address = dto.Address;
