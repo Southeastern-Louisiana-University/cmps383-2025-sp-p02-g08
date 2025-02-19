@@ -79,7 +79,7 @@ namespace Selu383.SP25.P02.Api.Controllers
 
         [HttpPut]
         [Route("{id}")]
-        [Authorize]
+        [Authorize] // Requires authentication
         public ActionResult<TheaterDto> UpdateTheater(int id, TheaterDto dto)
         {
             if (IsInvalid(dto))
@@ -93,18 +93,24 @@ namespace Selu383.SP25.P02.Api.Controllers
                 return NotFound();
             }
 
-            // ✅ Get logged-in user ID
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var isAdmin = User.IsInRole("Admin");
-            var isManager = theater.ManagerId.HasValue && theater.ManagerId == userId;
-
-            // ✅ Only allow updates by Admins or the assigned Manager
-            if (!isAdmin && !isManager)
+            //  Get logged-in user ID
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdClaim))
             {
-                return Forbid(); // 403 Forbidden
+                return Unauthorized(); // User must be logged in
             }
 
-            // ✅ Only Admins can change the ManagerId
+            int userId = int.Parse(userIdClaim);
+            bool isAdmin = User.IsInRole("Admin");
+            bool isManager = theater.ManagerId.HasValue && theater.ManagerId == userId; //  Bob must be ManagerId
+
+              //Allow Admins or Managers to update
+            if (!isAdmin && !isManager)
+            {
+                return Forbid(); //  403 Forbidden if user is not Manager/Admin
+            }
+
+            // Only Admins can change the ManagerId
             if (dto.ManagerId.HasValue && !isAdmin)
             {
                 return Forbid();
@@ -121,6 +127,8 @@ namespace Selu383.SP25.P02.Api.Controllers
 
             return Ok(dto);
         }
+
+
 
         [HttpDelete]
         [Route("{id}")]
