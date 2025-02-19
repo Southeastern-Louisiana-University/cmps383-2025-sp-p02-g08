@@ -107,7 +107,7 @@ namespace Selu383.SP25.P02.Api.Controllers
             //  Assign roles to user
             await _userManager.AddToRolesAsync(user, model.Roles);
 
-            return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, new UserDto
+            return Ok(new UserDto
             {
                 Id = user.Id,
                 UserName = user.UserName,
