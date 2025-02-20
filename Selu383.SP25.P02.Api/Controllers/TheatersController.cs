@@ -23,40 +23,38 @@ namespace Selu383.SP25.P02.Api.Controllers
             theaters = dataContext.Set<Theater>();
         }
 
-        // GET: List all theaters
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<TheaterDto>>> GetAllTheaters()
+        public IQueryable<TheaterDto> GetAllTheaters()
         {
-            var theaterDtos = await GetTheaterDtos(theaters).ToListAsync();
-            return Ok(theaterDtos);
+            return GetTheaterDtos(theaters);
         }
 
-        // GET: Get theater by ID
-        [HttpGet("{id}")]
-        public async Task<ActionResult<TheaterDto>> GetTheaterById(int id)
+        [HttpGet]
+        [Route("{id}")]
+        public ActionResult<TheaterDto> GetTheaterById(int id)
         {
-            var result = await GetTheaterDtos(theaters.Where(x => x.Id == id)).FirstOrDefaultAsync();
+            var result = GetTheaterDtos(theaters.Where(x => x.Id == id)).FirstOrDefault();
             if (result == null)
             {
                 return NotFound();
             }
+
             return Ok(result);
         }
 
-        // POST: Create a new theater
         [HttpPost]
         [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<TheaterDto>> CreateTheater([FromBody] TheaterDto dto)
+        public ActionResult<TheaterDto> CreateTheater(TheaterDto dto)
         {
-            if (IsInvalid(dto, out var errorMessage))
+            if (IsInvalid(dto))
             {
-                return BadRequest(errorMessage);
+                return BadRequest();
             }
 
-            // Validate ManagerId if provided
+            //  Ensure ManagerId is valid (can be null)
             if (dto.ManagerId.HasValue)
             {
-                bool managerExists = await dataContext.Users.AnyAsync(u => u.Id == dto.ManagerId);
+                var managerExists = dataContext.Users.Any(u => u.Id == dto.ManagerId);
                 if (!managerExists)
                 {
                     return BadRequest("Invalid ManagerId. User does not exist.");
@@ -70,117 +68,101 @@ namespace Selu383.SP25.P02.Api.Controllers
                 SeatCount = dto.SeatCount,
                 ManagerId = dto.ManagerId
             };
-
             theaters.Add(theater);
-            await dataContext.SaveChangesAsync();
+
+            dataContext.SaveChanges();
 
             dto.Id = theater.Id;
+
             return CreatedAtAction(nameof(GetTheaterById), new { id = dto.Id }, dto);
         }
 
-        // PUT: Update a theater
-        [HttpPut("{id}")]
-        [Authorize]
-        public async Task<ActionResult<TheaterDto>> UpdateTheater(int id, [FromBody] TheaterDto dto)
+        [HttpPut]
+        [Route("{id}")]
+        [Authorize] // Requires authentication
+        public ActionResult<TheaterDto> UpdateTheater(int id, TheaterDto dto)
         {
-            if (IsInvalid(dto, out var errorMessage))
+            if (IsInvalid(dto))
             {
-                return BadRequest(errorMessage);
+                return BadRequest();
             }
 
-            var theater = await theaters.FindAsync(id);
+            var theater = theaters.FirstOrDefault(x => x.Id == id);
             if (theater == null)
             {
                 return NotFound();
             }
 
-            if (!IsAuthorizedToModify(theater))
+            //  Get logged-in user ID
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdClaim))
             {
-                return Forbid();
+                return Unauthorized(); // User must be logged in
             }
+
+            int userId = int.Parse(userIdClaim);
+            bool isAdmin = User.IsInRole("Admin");
+            bool isManager = theater.ManagerId.HasValue && theater.ManagerId == userId; //  Bob must be ManagerId
+
+            //Allow Admins or Managers to update
+            if (!isAdmin && !isManager)
+            {
+                return Forbid(); //  403 Forbidden if user is not Manager/Admin
+            }
+
+
 
             theater.Name = dto.Name;
             theater.Address = dto.Address;
             theater.SeatCount = dto.SeatCount;
             theater.ManagerId = dto.ManagerId;
 
-            await dataContext.SaveChangesAsync();
+            dataContext.SaveChanges();
 
             dto.Id = theater.Id;
+
             return Ok(dto);
         }
 
-        // DELETE: Delete a theater
-        [HttpDelete("{id}")]
+
+
+        [HttpDelete]
+        [Route("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<ActionResult> DeleteTheater(int id)
+        public ActionResult DeleteTheater(int id)
         {
-            var theater = await theaters.FindAsync(id);
+            var theater = theaters.FirstOrDefault(x => x.Id == id);
             if (theater == null)
             {
                 return NotFound();
             }
 
             theaters.Remove(theater);
-            await dataContext.SaveChangesAsync();
 
-            return NoContent(); // 204 is expected for DELETE in RESTful APIs
+            dataContext.SaveChanges();
+
+            return Ok();
         }
 
-        // Helper function: Validate input
-        private static bool IsInvalid(TheaterDto dto, out string errorMessage)
+        private static bool IsInvalid(TheaterDto dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.Name))
-            {
-                errorMessage = "Theater name cannot be empty.";
-                return true;
-            }
-            if (dto.Name.Length > 120)
-            {
-                errorMessage = "Theater name exceeds 120 characters.";
-                return true;
-            }
-            if (string.IsNullOrWhiteSpace(dto.Address))
-            {
-                errorMessage = "Theater address is required.";
-                return true;
-            }
-            if (dto.SeatCount <= 0)
-            {
-                errorMessage = "Seat count must be greater than zero.";
-                return true;
-            }
-            errorMessage = null;
-            return false;
+            return string.IsNullOrWhiteSpace(dto.Name) ||
+                   dto.Name.Length > 120 ||
+                   string.IsNullOrWhiteSpace(dto.Address) ||
+                   dto.SeatCount <= 0;
         }
 
-        // Helper function: Convert Theater entities to DTOs
         private static IQueryable<TheaterDto> GetTheaterDtos(IQueryable<Theater> theaters)
         {
-            return theaters.Select(x => new TheaterDto
-            {
-                Id = x.Id,
-                Name = x.Name,
-                Address = x.Address,
-                SeatCount = x.SeatCount,
-                ManagerId = x.ManagerId
-            });
-        }
-
-        // Helper function: Check if the user is authorized to modify
-        private bool IsAuthorizedToModify(Theater theater)
-        {
-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                return false;
-            }
-
-            int userId = int.Parse(userIdClaim);
-            bool isAdmin = User.IsInRole("Admin");
-            bool isManager = theater.ManagerId.HasValue && theater.ManagerId == userId;
-
-            return isAdmin || isManager;
+            return theaters
+                .Select(x => new TheaterDto
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    Address = x.Address,
+                    SeatCount = x.SeatCount,
+                    ManagerId = x.ManagerId
+                });
         }
     }
 }
