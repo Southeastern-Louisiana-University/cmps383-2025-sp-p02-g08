@@ -53,16 +53,34 @@ namespace Selu383.SP25.P02.Api
 
                 await db.Database.MigrateAsync();  // ? Ensure DB is up to date
 
-                
                 await SeedUsersAndRoles.EnsureSeededAsync(services);  // ? Ensure Users & Roles Are Seeded
                 SeedTheaters.Initialize(scope.ServiceProvider); // ? Ensure Theaters Are Seeded
             }
 
             app.UseHttpsRedirection();
             app.UseAuthentication();
+            app.UseRouting();
             app.UseAuthorization();
-            app.MapControllers();
-
+            
+            app.UseEndpoints(x =>
+            {
+                x.MapControllers();
+            });
+            
+            app.UseStaticFiles();
+            
+            if (app.Environment.IsDevelopment())
+            {
+                app.UseSpa(x =>
+                {
+                    x.UseProxyToSpaDevelopmentServer("http://localhost:5173");
+                });
+            }
+            else 
+            {
+                app.MapFallbackToFile("/index.html");
+            }
+            
             app.Run();
         }
     }
