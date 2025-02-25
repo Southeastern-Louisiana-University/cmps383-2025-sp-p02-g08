@@ -12,15 +12,12 @@ namespace Selu383.SP25.P02.Api
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Ensure Correct Connection String (Use Environment Variable in Azure)
-            var connectionString = builder.Configuration.GetConnectionString("DataContext") ??
-                                   Environment.GetEnvironmentVariable("SQLAZURECONNSTR_DataContext") ??
-                                   throw new InvalidOperationException("Database connection string not found.");
-
+            // ? Add Database Context
             builder.Services.AddDbContext<DataContext>(options =>
-                options.UseSqlServer(connectionString));
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DataContext") ??
+                    throw new InvalidOperationException("Connection string 'DataContext' not found.")));
 
-            // Add Identity Authentication
+            // ? Add Identity Authentication
             builder.Services.AddIdentity<User, Role>(options =>
             {
                 options.User.RequireUniqueEmail = false;
@@ -44,70 +41,43 @@ namespace Selu383.SP25.P02.Api
                 };
             });
 
-            // Enable Swagger (API Documentation)
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen(options =>
-            {
-                options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-                {
-                    Title = "Theater API",
-                    Version = "v1",
-                    Description = "API for managing theaters, users, and authentication."
-                });
-            });
-
             builder.Services.AddControllers();
 
             var app = builder.Build();
 
-            // ENSURE DATABASE MIGRATION & SEEDING
+            // ? ENSURE DATABASE IS MIGRATED & SEEDED AT STARTUP
             using (var scope = app.Services.CreateScope())
             {
                 var services = scope.ServiceProvider;
                 var db = services.GetRequiredService<DataContext>();
 
-                try
-                {
-                    Console.WriteLine("Applying Migrations...");
-                    await db.Database.MigrateAsync();  // Ensure DB is up to date
-                    Console.WriteLine("Migrations Applied Successfully.");
+                await db.Database.MigrateAsync();  // ? Ensure DB is up to date
 
-                    Console.WriteLine("Seeding Users & Roles...");
-                    await SeedUsersAndRoles.EnsureSeededAsync(services);  // Seed Users & Roles
-                    Console.WriteLine("Seeding Theaters...");
-                    SeedTheaters.Initialize(scope.ServiceProvider); // Seed Theaters
-                    Console.WriteLine("Seeding Completed.");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"? ERROR: Database migration/seed failed - {ex.Message}");
-                }
+                await SeedUsersAndRoles.EnsureSeededAsync(services);  // ? Ensure Users & Roles Are Seeded
+                SeedTheaters.Initialize(scope.ServiceProvider); // ? Ensure Theaters Are Seeded
             }
 
-            //  Enable Middleware
             app.UseHttpsRedirection();
             app.UseAuthentication();
             app.UseRouting();
             app.UseAuthorization();
-            app.UseEndpoints(x => { x.MapControllers(); });
 
-            //  Enable Swagger UI (Make sure it's accessible in production)
-            app.UseSwagger();
-            app.UseSwaggerUI(c =>
+            app.UseEndpoints(x =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Theater API V1");
-                c.RoutePrefix = string.Empty;  // Set Swagger UI to root URL
+                x.MapControllers();
             });
 
-            //  Fix SPA Routing Issues
             app.UseStaticFiles();
+
             if (app.Environment.IsDevelopment())
             {
-                app.UseSpa(x => { x.UseProxyToSpaDevelopmentServer("http://localhost:5173"); });
+                app.UseSpa(x =>
+                {
+                    x.UseProxyToSpaDevelopmentServer("http://localhost:5173");
+                });
             }
             else
             {
-                Console.WriteLine(" Running in Production Mode - API Endpoints Only");
                 app.MapFallbackToFile("/index.html");
             }
 
