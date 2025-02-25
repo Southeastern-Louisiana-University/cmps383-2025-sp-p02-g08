@@ -61,14 +61,14 @@ namespace Selu383.SP25.P02.Api
             app.UseAuthentication();
             app.UseRouting();
             app.UseAuthorization();
-            
+
             app.UseEndpoints(x =>
             {
                 x.MapControllers();
             });
-            
+
             app.UseStaticFiles();
-            
+
             if (app.Environment.IsDevelopment())
             {
                 app.UseSpa(x =>
@@ -76,11 +76,11 @@ namespace Selu383.SP25.P02.Api
                     x.UseProxyToSpaDevelopmentServer("http://localhost:5173");
                 });
             }
-            else 
+            else
             {
                 app.MapFallbackToFile("/index.html");
             }
-            
+
             app.Run();
         }
     }
