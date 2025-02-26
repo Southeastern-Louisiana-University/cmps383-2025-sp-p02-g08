@@ -12,6 +12,9 @@
       "distribution": "internal"
     },
     "production": {
+      "android": {
+        "artifact": "apk"
+      },
       "autoIncrement": true
     }
   },
